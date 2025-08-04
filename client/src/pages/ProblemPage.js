@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
-import io from "socket.io-client";
 import CodeMirror from "@uiw/react-codemirror";
 import { java } from "@codemirror/lang-java";
 import { Box, Button, Typography, CircularProgress } from "@mui/material";
+import { SocketContext } from "../context/SocketContext";
 
 // The default Java template for the editor
 const javaTemplate = `import java.util.*;
@@ -32,6 +32,7 @@ public class Main {
 
 const ProblemPage = () => {
   const { id: problemId } = useParams();
+  const socket = useContext(SocketContext);
   const [problem, setProblem] = useState(null);
   const [myCode, setMyCode] = useState(javaTemplate);
   const [opponentCode, setOpponentCode] = useState(
@@ -40,9 +41,8 @@ const ProblemPage = () => {
   const [submissionResult, setSubmissionResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [commentary, setCommentary] = useState([]);
-  const socketRef = useRef(null);
 
-  // --- THIS WAS MISSING: useEffect to fetch problem data ---
+  // --- FIX: Simplified and more robust data fetching ---
   useEffect(() => {
     const fetchProblem = async () => {
       try {
@@ -50,66 +50,64 @@ const ProblemPage = () => {
         setProblem(data);
       } catch (error) {
         console.error("Failed to fetch problem", error);
+        // Optionally, handle the error in the UI
       }
     };
     fetchProblem();
-  }, [problemId]);
+  }, [problemId]); // This dependency array is correct
 
-  // --- THIS WAS MISSING: useEffect for WebSocket connection ---
+  // useEffect for WebSocket connection
   useEffect(() => {
-    socketRef.current = io("http://localhost:5001");
-    socketRef.current.emit("joinRoom", problemId);
+    if (!socket) return;
 
-    socketRef.current.on("opponentCodeChange", (newCode) => {
+    socket.emit("joinBattleRoom", problemId);
+
+    socket.on("opponentCodeChange", (newCode) => {
       setOpponentCode(newCode);
     });
-
-    socketRef.current.on("newCommentary", (data) => {
+    socket.on("newCommentary", (data) => {
       setCommentary((prev) => [data.text, ...prev.slice(0, 4)]);
     });
 
     return () => {
-      socketRef.current.disconnect();
+      socket.off("opponentCodeChange");
+      socket.off("newCommentary");
     };
-  }, [problemId]);
+  }, [socket, problemId]);
 
   const handleCodeChange = (newCode) => {
     setMyCode(newCode);
-    socketRef.current.emit("codeChange", { roomId: problemId, newCode });
+    if (socket) {
+      socket.emit("codeChange", { roomId: problemId, newCode });
+    }
   };
 
   const handleSubmit = async () => {
-    // --- NEW: Get token from localStorage ---
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      alert('You must be logged in to submit a solution.');
+      alert("You must be logged in to submit a solution.");
       return;
     }
 
     setIsSubmitting(true);
     setSubmissionResult(null);
     try {
-      // --- NEW: Create config object with headers ---
       const config = {
         headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': token,
+          "Content-Type": "application/json",
+          "x-auth-token": token,
         },
       };
-
       const body = {
         code: myCode,
-        language: 'java',
+        language: "java",
         problemId: problemId,
       };
-
-      // --- NEW: Pass the body and config to axios.post ---
-      const { data } = await axios.post('/api/submissions', body, config);
-      
+      const { data } = await axios.post("/api/submissions", body, config);
       setSubmissionResult(data);
     } catch (error) {
-      console.error('Submission failed', error);
-      alert('An error occurred during submission.');
+      console.error("Submission failed", error);
+      alert("An error occurred during submission.");
     } finally {
       setIsSubmitting(false);
     }

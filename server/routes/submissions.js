@@ -135,7 +135,9 @@ router.post("/", auth, async (req, res) => {
     if (!problem) {
       return res.status(404).json({ error: "Problem not found" });
     }
-    const user = await User.findById(userId);
+    //const user = await User.findById(userId);
+    const user = await User.findById(req.user.id); 
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
