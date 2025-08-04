@@ -1,0 +1,24 @@
+# Node.js backend
+node_modules/
+.env
+dist/
+build/
+package-lock.json
+
+# React frontend
+client/node_modules/
+client/.env
+client/build/
+client/package-lock.json
+
+# Logs
+logs/
+*.log
+
+# IDE files
+.vscode/
+.idea/
+.DS_Store
+
+# OS files
+Thumbs.db
