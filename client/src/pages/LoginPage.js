@@ -1,12 +1,13 @@
-// client/src/pages/LoginPage.js
-import React, { useState } from "react";
+import React, { useState, useContext } from "react"; // Import useContext
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Box, Button, Container, TextField, Typography } from "@mui/material";
+import { AuthContext } from "../App"; // Import the AuthContext
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext); // Get the login function from context
 
   const onChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -15,8 +16,14 @@ const LoginPage = () => {
     e.preventDefault();
     try {
       const res = await axios.post("/api/auth/login", formData);
+      // --- FIX: Store both token and user object ---
       localStorage.setItem("token", res.data.token);
-      navigate("/problems");
+      localStorage.setItem("user", JSON.stringify(res.data.user)); // Store user as a JSON string
+
+      // --- FIX: Update the global auth state ---
+      login(res.data.user);
+
+      navigate("/lobby"); // Navigate to lobby after login
     } catch (err) {
       console.error(err.response.data);
       alert("Error: " + err.response.data.msg);

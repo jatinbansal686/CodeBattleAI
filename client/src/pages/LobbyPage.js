@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { SocketContext } from "../context/SocketContext";
-import axios from "axios"; // Import axios
+import axios from "axios";
 import {
   Box,
   Typography,
@@ -19,13 +19,12 @@ import GroupIcon from "@mui/icons-material/Group";
 
 const LobbyPage = () => {
   const [rooms, setRooms] = useState({});
-  const [problems, setProblems] = useState([]); // State to hold real problems
-  const [isLoading, setIsLoading] = useState(true); // Loading state for problems
+  const [problems, setProblems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const socket = useContext(SocketContext);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // --- FIX: Fetch real problems from the database ---
     const fetchProblems = async () => {
       try {
         const { data } = await axios.get("/api/problems");
@@ -44,8 +43,11 @@ const LobbyPage = () => {
     socket.on("lobbyUpdate", (updatedRooms) => {
       setRooms(updatedRooms);
     });
-    socket.on("matchStart", ({ problemId }) => {
-      navigate(`/problems/${problemId}`);
+
+    // --- THIS IS THE CORRECTED NAVIGATION LOGIC ---
+    socket.on("matchStart", ({ roomId, problemId }) => {
+      // Navigate to the new /battle URL structure
+      navigate(`/battle/${roomId}/${problemId}`);
     });
 
     return () => {
@@ -59,25 +61,19 @@ const LobbyPage = () => {
       alert("Connection not ready, please wait a moment.");
       return;
     }
-    // Ensure we have problems to create a room with
     if (problems.length === 0) {
-      alert(
-        "No problems available to create a match. Please add problems via the backend."
-      );
+      alert("No problems available to create a match.");
       return;
     }
 
-    // --- FIX: Use the ID and title from the first available problem ---
     const problemToUse = problems[0];
-
-    // In a real app, you'd get the current user's info from an AuthContext
     const user = {
       id: `user_${Date.now()}`,
       username: "Player" + Math.floor(Math.random() * 100),
     };
 
     socket.emit("createRoom", {
-      problemId: problemToUse._id, // Use the real _id from the database
+      problemId: problemToUse._id,
       problemTitle: problemToUse.title,
       user: user,
     });
@@ -134,15 +130,20 @@ const LobbyPage = () => {
                       <Button
                         variant="outlined"
                         onClick={() => handleJoinRoom(room.id)}
-                        disabled={room.status === "full"}
+                        disabled={
+                          room.status === "in_progress" ||
+                          room.status === "finished"
+                        }
                       >
-                        {room.status === "full" ? "In Progress" : "Join"}
+                        {room.status === "waiting" ? "Join" : "In Progress"}
                       </Button>
                     }
                   >
                     <ListItemIcon>
                       <GroupIcon
-                        color={room.status === "full" ? "error" : "success"}
+                        color={
+                          room.status === "in_progress" ? "error" : "success"
+                        }
                       />
                     </ListItemIcon>
                     <ListItemText

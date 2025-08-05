@@ -1,8 +1,15 @@
-// client/src/pages/ProblemsListPage.js
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Link as RouterLink } from 'react-router-dom';
-import { Card, CardActionArea, CardContent, Typography, Grid, Box, CircularProgress } from '@mui/material';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { Link as RouterLink } from "react-router-dom";
+import {
+  Card,
+  CardActionArea,
+  CardContent,
+  Typography,
+  Grid,
+  Box,
+  CircularProgress,
+} from "@mui/material";
 
 const ProblemsListPage = () => {
   const [problems, setProblems] = useState([]);
@@ -11,10 +18,10 @@ const ProblemsListPage = () => {
   useEffect(() => {
     const fetchProblems = async () => {
       try {
-        const res = await axios.get('/api/problems');
+        const res = await axios.get("/api/problems");
         setProblems(res.data);
       } catch (err) {
-        console.error('Error fetching problems:', err);
+        console.error("Error fetching problems:", err);
       } finally {
         setLoading(false);
       }
@@ -24,7 +31,14 @@ const ProblemsListPage = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "60vh",
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -36,10 +50,15 @@ const ProblemsListPage = () => {
         Coding Problems
       </Typography>
       <Grid container spacing={3}>
-        {problems.map(problem => (
+        {problems.map((problem) => (
           <Grid item xs={12} md={6} lg={4} key={problem._id}>
-            <Card sx={{ height: '100%' }}>
-              <CardActionArea component={RouterLink} to={`/problems/${problem._id}`} sx={{ height: '100%' }}>
+            <Card sx={{ height: "100%" }}>
+              {/* --- CORRECTED LINK to the practice page --- */}
+              <CardActionArea
+                component={RouterLink}
+                to={`/practice/${problem._id}`}
+                sx={{ height: "100%" }}
+              >
                 <CardContent>
                   <Typography gutterBottom variant="h5" component="div">
                     {problem.title}

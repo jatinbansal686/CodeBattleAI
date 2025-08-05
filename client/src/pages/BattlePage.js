@@ -12,6 +12,7 @@ import {
   Fade,
 } from "@mui/material";
 import { SocketContext } from "../context/SocketContext";
+import { AuthContext } from "../App"; // Import AuthContext from App.js
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import SentimentVeryDissatisfiedIcon from "@mui/icons-material/SentimentVeryDissatisfied";
 
@@ -28,16 +29,14 @@ public class Main {
 `;
 
 const ProblemPage = () => {
-  const { id: problemId } = useParams();
+  const { roomId, problemId } = useParams();
   const socket = useContext(SocketContext);
+  const { user } = useContext(AuthContext); // Get the logged-in user from context
   const navigate = useNavigate();
 
-  // --- NEW STATE FOR MATCH LOGIC ---
-  const [matchState, setMatchState] = useState("in_progress"); // 'in_progress', 'finished'
+  const [matchState, setMatchState] = useState("in_progress");
   const [winner, setWinner] = useState(null);
-  const [timer, setTimer] = useState(300); // 5-minute timer (300 seconds)
-
-  // Existing state
+  const [timer, setTimer] = useState(300);
   const [problem, setProblem] = useState(null);
   const [myCode, setMyCode] = useState(javaTemplate);
   const [opponentCode, setOpponentCode] = useState(
@@ -47,37 +46,26 @@ const ProblemPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [commentary, setCommentary] = useState([]);
 
-  // --- NEW: useEffect for the match timer ---
   useEffect(() => {
     if (matchState === "in_progress" && timer > 0) {
-      const interval = setInterval(() => {
-        setTimer((prevTimer) => prevTimer - 1);
-      }, 1000);
+      const interval = setInterval(() => setTimer((t) => t - 1), 1000);
       return () => clearInterval(interval);
     } else if (timer === 0 && matchState === "in_progress") {
-      // Handle timeout if needed
       setMatchState("finished");
-      setWinner("Time Up!"); // Or handle draws
+      setWinner("Time Up!");
     }
   }, [timer, matchState]);
 
-  // useEffect for fetching problem data
   useEffect(() => {
-    const fetchProblem = async () => {
-      try {
-        const { data } = await axios.get(`/api/problems/${problemId}`);
-        setProblem(data);
-      } catch (error) {
-        console.error("Failed to fetch problem", error);
-      }
-    };
-    fetchProblem();
+    axios
+      .get(`/api/problems/${problemId}`)
+      .then((res) => setProblem(res.data))
+      .catch((err) => console.error("Failed to fetch problem", err));
   }, [problemId]);
 
-  // useEffect for all WebSocket event handling
   useEffect(() => {
     if (!socket) return;
-    socket.emit("joinBattleRoom", problemId);
+    socket.emit("joinBattleRoom", roomId);
 
     socket.on("opponentCodeChange", (newCode) => setOpponentCode(newCode));
     socket.on("newCommentary", (data) =>
@@ -89,9 +77,7 @@ const ProblemPage = () => {
         ...prev.slice(0, 4),
       ])
     );
-
-    // --- NEW: Listener for when the match ends ---
-    socket.on("matchEnd", ({ winner, reason }) => {
+    socket.on("matchEnd", ({ winner }) => {
       setMatchState("finished");
       setWinner(winner);
     });
@@ -100,38 +86,52 @@ const ProblemPage = () => {
       socket.off("opponentCodeChange");
       socket.off("newCommentary");
       socket.off("testCaseResult");
-      socket.off("matchEnd"); // <-- Cleanup the new listener
+      socket.off("matchEnd");
     };
-  }, [socket, problemId]);
+  }, [socket, roomId]);
 
   const handleCodeChange = (newCode) => {
     setMyCode(newCode);
     if (socket) {
-      socket.emit("codeChange", { roomId: problemId, newCode });
+      socket.emit("codeChange", { roomId, newCode });
     }
   };
 
   const handleSubmit = async () => {
     const token = localStorage.getItem("token");
-    if (!token) {
-      alert("You must be logged in to submit a solution.");
-      return;
-    }
+    if (!token) return alert("You must be logged in.");
+
     setIsSubmitting(true);
     setSubmissionResult(null);
     try {
       const config = {
         headers: { "Content-Type": "application/json", "x-auth-token": token },
       };
-      // const body = { code: myCode, language: "java", problemId: problemId };
       const body = {
         code: myCode,
         language: "java",
-        problemId: problemId,
-        roomId: problemId, // Pass the roomId (which is the problemId in our case)
+        problemId,
+        roomId,
       };
+
       const { data } = await axios.post("/api/submissions", body, config);
-      setSubmissionResult(data);
+      setSubmissionResult(data.results);
+
+      if (data.allPassed) {
+        // --- FIX: Use the actual username from the AuthContext ---
+        if (user) {
+          socket.emit("iWon", {
+            roomId,
+            user: { id: user._id, username: user.username },
+          });
+        } else {
+          // Fallback in case user context is not available
+          socket.emit("iWon", {
+            roomId,
+            user: { id: "unknown", username: "A player" },
+          });
+        }
+      }
     } catch (error) {
       console.error("Submission failed", error);
       alert("An error occurred during submission.");
@@ -156,7 +156,6 @@ const ProblemPage = () => {
 
   return (
     <Box sx={{ position: "relative" }}>
-      {/* --- NEW: Match End Overlay --- */}
       {matchState === "finished" && (
         <Fade in={true} timeout={500}>
           <Box
@@ -179,10 +178,27 @@ const ProblemPage = () => {
             <Typography variant="h2" gutterBottom>
               Match Over
             </Typography>
-            <EmojiEventsIcon sx={{ fontSize: 80, color: "gold" }} />
-            <Typography variant="h4" sx={{ mt: 2 }}>
-              Winner: {winner}
-            </Typography>
+            {/* --- FIX: Display You Win / You Lose --- */}
+            {winner === user?.username ? (
+              <>
+                <EmojiEventsIcon sx={{ fontSize: 80, color: "gold" }} />
+                <Typography variant="h4" sx={{ mt: 2 }}>
+                  You Win!
+                </Typography>
+              </>
+            ) : (
+              <>
+                <SentimentVeryDissatisfiedIcon
+                  sx={{ fontSize: 80, color: "grey.500" }}
+                />
+                <Typography variant="h4" sx={{ mt: 2 }}>
+                  You Lose
+                </Typography>
+                <Typography variant="h6" sx={{ mt: 1 }}>
+                  Winner: {winner}
+                </Typography>
+              </>
+            )}
             <Button
               variant="contained"
               sx={{ mt: 4 }}
@@ -193,7 +209,6 @@ const ProblemPage = () => {
           </Box>
         </Fade>
       )}
-
       <Box
         sx={{
           display: "flex",
@@ -206,7 +221,6 @@ const ProblemPage = () => {
           <Typography variant="h4" gutterBottom>
             {problem.title}
           </Typography>
-          {/* --- NEW: Timer Display --- */}
           <Paper
             elevation={3}
             sx={{ p: 2, mb: 2, textAlign: "center", background: "transparent" }}
@@ -236,7 +250,6 @@ const ProblemPage = () => {
             ))}
           </Box>
         </Box>
-
         {/* Right Panel */}
         <Box
           sx={{
@@ -272,7 +285,6 @@ const ProblemPage = () => {
           >
             {isSubmitting ? <CircularProgress size={24} /> : "Submit Code"}
           </Button>
-          {/* --- FIX: Replaced the placeholder comment with the actual JSX --- */}
           {submissionResult && (
             <Box
               sx={{

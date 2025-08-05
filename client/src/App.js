@@ -4,6 +4,7 @@ import React, {
   createContext,
   useContext,
   useRef,
+  useEffect,
 } from "react";
 import {
   BrowserRouter as Router,
@@ -12,7 +13,6 @@ import {
   Link as RouterLink,
 } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
-// --- CHANGE HERE: Use a named import with curly braces ---
 import { getTheme } from "./theme";
 import { SocketContext } from "./context/SocketContext";
 import io from "socket.io-client";
@@ -21,7 +21,8 @@ import io from "socket.io-client";
 import RegisterPage from "./pages/RegisterPage";
 import LoginPage from "./pages/LoginPage";
 import ProblemsListPage from "./pages/ProblemsListPage";
-import ProblemPage from "./pages/ProblemPage";
+import BattlePage from "./pages/BattlePage"; // <-- Correctly named
+import PracticePage from "./pages/PracticePage"; // <-- New practice page
 import LeaderboardPage from "./pages/LeaderboardPage";
 import LobbyPage from "./pages/LobbyPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -38,14 +39,14 @@ import {
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 
-// Create Contexts
+// Create and Export Contexts
 const ColorModeContext = createContext({ toggleColorMode: () => {} });
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
-// --- Navbar Component ---
+// --- Navbar Component (No changes needed) ---
 const Navbar = () => {
   const colorMode = useContext(ColorModeContext);
-  const { isAuthenticated, logout } = useContext(AuthContext);
+  const { isAuthenticated, logout, user } = useContext(AuthContext);
   const currentMode = localStorage.getItem("themeMode") || "dark";
 
   return (
@@ -74,6 +75,7 @@ const Navbar = () => {
         </Button>
         {isAuthenticated ? (
           <>
+            <Typography sx={{ mr: 2 }}>Welcome, {user?.username}</Typography>
             <Button color="inherit" component={RouterLink} to="/profile">
               Profile
             </Button>
@@ -103,7 +105,7 @@ const Navbar = () => {
   );
 };
 
-// --- AppRoutes Component ---
+// --- AppRoutes Component (Updated) ---
 function AppRoutes() {
   return (
     <Routes>
@@ -115,12 +117,9 @@ function AppRoutes() {
               variant="h2"
               component="h1"
               gutterBottom
-              sx={{ fontWeight: "bold", textShadow: "0 0 10px #00f5d455" }}
+              sx={{ fontWeight: "bold" }}
             >
               Welcome to CodeBattle.AI
-            </Typography>
-            <Typography variant="h5" color="text.secondary">
-              The Ultimate Arena for Competitive Programming
             </Typography>
           </Box>
         }
@@ -128,7 +127,13 @@ function AppRoutes() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/problems" element={<ProblemsListPage />} />
-      <Route path="/problems/:id" element={<ProblemPage />} />
+
+      {/* --- NEW ROUTE for solo practice --- */}
+      <Route path="/practice/:problemId" element={<PracticePage />} />
+
+      {/* --- UPDATED ROUTE for competitive battles --- */}
+      <Route path="/battle/:roomId/:problemId" element={<BattlePage />} />
+
       <Route path="/lobby" element={<LobbyPage />} />
       <Route path="/leaderboard" element={<LeaderboardPage />} />
       <Route path="/profile" element={<ProfilePage />} />
@@ -136,12 +141,17 @@ function AppRoutes() {
   );
 }
 
-// --- Main App Wrapper Component ---
+// --- Main App Wrapper (No changes needed) ---
 function AppWrapper() {
   const [mode, setMode] = useState(localStorage.getItem("themeMode") || "dark");
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem("token")
-  );
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
 
   const socketInstance = useRef(null);
   if (!socketInstance.current) {
@@ -163,15 +173,17 @@ function AppWrapper() {
 
   const authContextValue = useMemo(
     () => ({
-      isAuthenticated,
-      login: () => setIsAuthenticated(true),
+      isAuthenticated: !!localStorage.getItem("token"),
+      user,
+      login: (userData) => setUser(userData),
       logout: () => {
         localStorage.removeItem("token");
-        setIsAuthenticated(false);
+        localStorage.removeItem("user");
+        setUser(null);
         window.location.href = "/login";
       },
     }),
-    [isAuthenticated]
+    [user]
   );
 
   const theme = useMemo(() => getTheme(mode), [mode]);

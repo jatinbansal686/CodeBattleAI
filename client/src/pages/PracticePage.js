@@ -1,48 +1,35 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import CodeMirror from "@uiw/react-codemirror";
 import { java } from "@codemirror/lang-java";
-import { Box, Button, Typography, CircularProgress } from "@mui/material";
-import { SocketContext } from "../context/SocketContext";
+import {
+  Box,
+  Button,
+  Typography,
+  CircularProgress,
+  Paper,
+} from "@mui/material";
 
-// The default Java template for the editor
 const javaTemplate = `import java.util.*;
 import java.io.*;
 
-// The main class must be named "Main" for the Judge0 execution environment
 public class Main {
     public static void main(String[] args) throws IOException {
-        // Use BufferedReader for faster I/O
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        
-        // Read the single line of input
         String inputLine = br.readLine();
-        
-        // --- Your logic goes here ---
-        // Example: just print the input back out
         System.out.println("You entered: " + inputLine);
-        
-        // --- Solve the problem and print the output ---
-        // For "Two Sum" with input "[2,7,11,15], 9", you would parse this line
-        // and print the result, e.g., System.out.println("[0,1]");
     }
 }
 `;
 
-const ProblemPage = () => {
-  const { id: problemId } = useParams();
-  const socket = useContext(SocketContext);
+const PracticePage = () => {
+  const { problemId } = useParams();
   const [problem, setProblem] = useState(null);
   const [myCode, setMyCode] = useState(javaTemplate);
-  const [opponentCode, setOpponentCode] = useState(
-    "// Waiting for opponent..."
-  );
   const [submissionResult, setSubmissionResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [commentary, setCommentary] = useState([]);
 
-  // --- FIX: Simplified and more robust data fetching ---
   useEffect(() => {
     const fetchProblem = async () => {
       try {
@@ -50,36 +37,13 @@ const ProblemPage = () => {
         setProblem(data);
       } catch (error) {
         console.error("Failed to fetch problem", error);
-        // Optionally, handle the error in the UI
       }
     };
     fetchProblem();
-  }, [problemId]); // This dependency array is correct
-
-  // useEffect for WebSocket connection
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.emit("joinBattleRoom", problemId);
-
-    socket.on("opponentCodeChange", (newCode) => {
-      setOpponentCode(newCode);
-    });
-    socket.on("newCommentary", (data) => {
-      setCommentary((prev) => [data.text, ...prev.slice(0, 4)]);
-    });
-
-    return () => {
-      socket.off("opponentCodeChange");
-      socket.off("newCommentary");
-    };
-  }, [socket, problemId]);
+  }, [problemId]);
 
   const handleCodeChange = (newCode) => {
     setMyCode(newCode);
-    if (socket) {
-      socket.emit("codeChange", { roomId: problemId, newCode });
-    }
   };
 
   const handleSubmit = async () => {
@@ -93,18 +57,16 @@ const ProblemPage = () => {
     setSubmissionResult(null);
     try {
       const config = {
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token,
-        },
+        headers: { "Content-Type": "application/json", "x-auth-token": token },
       };
       const body = {
         code: myCode,
         language: "java",
         problemId: problemId,
       };
+      // The API response includes 'results' and 'allPassed'
       const { data } = await axios.post("/api/submissions", body, config);
-      setSubmissionResult(data);
+      setSubmissionResult(data.results);
     } catch (error) {
       console.error("Submission failed", error);
       alert("An error occurred during submission.");
@@ -126,61 +88,28 @@ const ProblemPage = () => {
       sx={{
         display: "flex",
         gap: "2rem",
-        flexDirection: { xs: "column", md: "row" },
+        flexDirection: { xs: "column", lg: "row" },
       }}
     >
-      {/* Left Panel: Problem Description and Commentary */}
+      {/* Left Panel: Problem Description */}
       <Box sx={{ flex: 1 }}>
         <Typography variant="h4" gutterBottom>
           {problem.title}
         </Typography>
         <Typography paragraph>{problem.description}</Typography>
         <Typography variant="h6">Difficulty: {problem.difficulty}</Typography>
-
-        <Box
-          sx={{
-            mt: 4,
-            border: "1px solid",
-            borderColor: "divider",
-            padding: "1rem",
-            borderRadius: "8px",
-          }}
-        >
-          <Typography variant="h6" color="primary">
-            🎤 Live Commentary
-          </Typography>
-          {commentary.length > 0 ? (
-            commentary.map((text, index) => (
-              <Typography key={index} sx={{ mt: 1, opacity: 1 - index * 0.2 }}>
-                {text}
-              </Typography>
-            ))
-          ) : (
-            <Typography sx={{ mt: 1 }} color="text.secondary">
-              Waiting for the first move...
-            </Typography>
-          )}
-        </Box>
       </Box>
 
-      {/* Right Panel: Code Editors and Results */}
+      {/* Right Panel: Code Editor and Results */}
       <Box
         sx={{ flex: 2, display: "flex", flexDirection: "column", gap: "1rem" }}
       >
-        <Typography variant="h5">My Code (Java)</Typography>
+        <Typography variant="h5">Your Code (Java)</Typography>
         <CodeMirror
           value={myCode}
-          height="400px"
+          height="500px"
           extensions={[java()]}
           onChange={handleCodeChange}
-          theme="dark"
-        />
-        <Typography variant="h5">Opponent's Code</Typography>
-        <CodeMirror
-          value={opponentCode}
-          height="200px"
-          extensions={[java()]}
-          readOnly={true}
           theme="dark"
         />
         <Button
@@ -190,17 +119,15 @@ const ProblemPage = () => {
           color="primary"
           size="large"
         >
-          {isSubmitting ? <CircularProgress size={24} /> : "Submit Code"}
+          {isSubmitting ? <CircularProgress size={24} /> : "Submit & Run"}
         </Button>
 
         {submissionResult && (
-          <Box
+          <Paper
+            elevation={3}
             sx={{
               mt: 2,
-              border: "1px solid",
-              borderColor: "divider",
-              padding: "1rem",
-              borderRadius: "8px",
+              p: 2,
             }}
           >
             <Typography variant="h6">Submission Results</Typography>
@@ -224,7 +151,7 @@ const ProblemPage = () => {
                 {result.stdout && (
                   <pre
                     style={{
-                      margin: "0.5rem 0 0 0",
+                      margin: 0,
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-all",
                     }}
@@ -235,7 +162,7 @@ const ProblemPage = () => {
                 {result.stderr && (
                   <pre
                     style={{
-                      margin: "0.5rem 0 0 0",
+                      margin: 0,
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-all",
                       color: "red",
@@ -246,11 +173,11 @@ const ProblemPage = () => {
                 )}
               </Box>
             ))}
-          </Box>
+          </Paper>
         )}
       </Box>
     </Box>
   );
 };
 
-export default ProblemPage;
+export default PracticePage;
