@@ -1,18 +1,17 @@
-// server/routes/run.js
 const express = require("express");
 const router = express.Router();
 const axios = require("axios");
-const auth = require("../middleware/auth"); // We still need to know who is running the code
+const auth = require("../middleware/auth");
 
 const JUDGE0_API_URL = "https://judge0-ce.p.rapidapi.com/submissions";
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = "judge0-ce.p.rapidapi.com";
 
 // @route   POST api/run
-// @desc    Run code with custom input
+// @desc    Run code with multiple custom inputs
 // @access  Private
 router.post("/", auth, async (req, res) => {
-  const { code, language, customInput } = req.body;
+  const { code, language, inputs } = req.body;
 
   const languageMap = { java: 62, javascript: 93, python: 71 };
   const language_id = languageMap[language];
@@ -22,28 +21,47 @@ router.post("/", auth, async (req, res) => {
   }
 
   try {
-    // We create a single submission to Judge0
-    const options = {
+    // --- FIX: Implement robust two-step polling for batch submissions ---
+
+    // Step 1: Create the batch submission
+    const submissions = inputs.map((input) => ({
+      source_code: code,
+      language_id: language_id,
+      stdin: input,
+    }));
+
+    const createOptions = {
       method: "POST",
-      url: JUDGE0_API_URL,
-      params: { base64_encoded: "false", wait: "true", fields: "*" },
+      url: `${JUDGE0_API_URL}/batch`,
+      params: { base64_encoded: "false" }, // Remove the invalid 'wait' parameter
       headers: {
         "content-type": "application/json",
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": RAPIDAPI_HOST,
       },
-      data: {
-        source_code: code,
-        language_id: language_id,
-        stdin: customInput, // Use the custom input provided by the user
+      data: { submissions: submissions },
+    };
+
+    const createResponse = await axios.request(createOptions);
+    const tokens = createResponse.data.map((s) => s.token).join(",");
+
+    // Step 2: Poll for the results after a delay
+    await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait for execution
+
+    const getOptions = {
+      method: "GET",
+      url: `${JUDGE0_API_URL}/batch`,
+      params: { tokens: tokens, base64_encoded: "false", fields: "*" },
+      headers: {
+        "X-RapidAPI-Key": RAPIDAPI_KEY,
+        "X-RapidAPI-Host": RAPIDAPI_HOST,
       },
     };
 
-    // The 'wait: true' param tells Judge0 to wait for execution to finish
-    const judge0Response = await axios.request(options);
+    const resultResponse = await axios.request(getOptions);
 
-    // Send the full result back to the client
-    res.json(judge0Response.data);
+    // Send the array of results back to the client
+    res.json(resultResponse.data.submissions);
   } catch (error) {
     console.error(
       "Error with Judge0 Run API:",
