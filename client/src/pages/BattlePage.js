@@ -10,9 +10,13 @@ import {
   CircularProgress,
   Paper,
   Fade,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
 } from "@mui/material";
 import { SocketContext } from "../context/SocketContext";
-import { AuthContext } from "../App"; // Import AuthContext from App.js
+import { AuthContext } from "../App";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import SentimentVeryDissatisfiedIcon from "@mui/icons-material/SentimentVeryDissatisfied";
 
@@ -28,10 +32,10 @@ public class Main {
 }
 `;
 
-const ProblemPage = () => {
+const BattlePage = () => {
   const { roomId, problemId } = useParams();
   const socket = useContext(SocketContext);
-  const { user } = useContext(AuthContext); // Get the logged-in user from context
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [matchState, setMatchState] = useState("in_progress");
@@ -107,28 +111,15 @@ const ProblemPage = () => {
       const config = {
         headers: { "Content-Type": "application/json", "x-auth-token": token },
       };
-      const body = {
-        code: myCode,
-        language: "java",
-        problemId,
-        roomId,
-      };
-
+      const body = { code: myCode, language: "java", problemId, roomId };
       const { data } = await axios.post("/api/submissions", body, config);
       setSubmissionResult(data.results);
 
       if (data.allPassed) {
-        // --- FIX: Use the actual username from the AuthContext ---
         if (user) {
           socket.emit("iWon", {
             roomId,
             user: { id: user._id, username: user.username },
-          });
-        } else {
-          // Fallback in case user context is not available
-          socket.emit("iWon", {
-            roomId,
-            user: { id: "unknown", username: "A player" },
           });
         }
       }
@@ -178,7 +169,6 @@ const ProblemPage = () => {
             <Typography variant="h2" gutterBottom>
               Match Over
             </Typography>
-            {/* --- FIX: Display You Win / You Lose --- */}
             {winner === user?.username ? (
               <>
                 <EmojiEventsIcon sx={{ fontSize: 80, color: "gold" }} />
@@ -213,11 +203,11 @@ const ProblemPage = () => {
         sx={{
           display: "flex",
           gap: "2rem",
-          flexDirection: { xs: "column", md: "row" },
+          flexDirection: { xs: "column", lg: "row" },
         }}
       >
         {/* Left Panel */}
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1.5 }}>
           <Typography variant="h4" gutterBottom>
             {problem.title}
           </Typography>
@@ -229,8 +219,52 @@ const ProblemPage = () => {
               {formatTime(timer)}
             </Typography>
           </Paper>
-          <Typography paragraph>{problem.description}</Typography>
-          <Typography variant="h6">Difficulty: {problem.difficulty}</Typography>
+          <Typography paragraph color="text.secondary">
+            {problem.description}
+          </Typography>
+          <Divider sx={{ my: 2 }} />
+
+          {/* --- NEW: Examples Section --- */}
+          {problem.examples &&
+            problem.examples.map((example, index) => (
+              <Box key={index} sx={{ mb: 2 }}>
+                <Typography variant="h6">Example {index + 1}:</Typography>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    background: "rgba(255, 255, 255, 0.05)",
+                    fontFamily: "monospace",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  <strong>Input:</strong> {example.input}
+                  <br />
+                  <strong>Output:</strong> {example.output}
+                  {example.explanation && (
+                    <>
+                      <br />
+                      <strong>Explanation:</strong> {example.explanation}
+                    </>
+                  )}
+                </Paper>
+              </Box>
+            ))}
+
+          {/* --- NEW: Constraints Section --- */}
+          {problem.constraints && problem.constraints.length > 0 && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="h6">Constraints:</Typography>
+              <List dense>
+                {problem.constraints.map((constraint, index) => (
+                  <ListItem key={index} sx={{ pl: 2 }}>
+                    <ListItemText primary={`• ${constraint}`} />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          )}
+
           <Box
             sx={{
               mt: 4,
@@ -286,15 +320,7 @@ const ProblemPage = () => {
             {isSubmitting ? <CircularProgress size={24} /> : "Submit Code"}
           </Button>
           {submissionResult && (
-            <Box
-              sx={{
-                mt: 2,
-                border: "1px solid",
-                borderColor: "divider",
-                padding: "1rem",
-                borderRadius: "8px",
-              }}
-            >
+            <Paper elevation={3} sx={{ mt: 2, p: 2 }}>
               <Typography variant="h6">Submission Results</Typography>
               {submissionResult.map((result, index) => (
                 <Box
@@ -316,7 +342,7 @@ const ProblemPage = () => {
                   {result.stdout && (
                     <pre
                       style={{
-                        margin: "0.5rem 0 0 0",
+                        margin: 0,
                         whiteSpace: "pre-wrap",
                         wordBreak: "break-all",
                       }}
@@ -327,7 +353,7 @@ const ProblemPage = () => {
                   {result.stderr && (
                     <pre
                       style={{
-                        margin: "0.5rem 0 0 0",
+                        margin: 0,
                         whiteSpace: "pre-wrap",
                         wordBreak: "break-all",
                         color: "red",
@@ -338,7 +364,7 @@ const ProblemPage = () => {
                   )}
                 </Box>
               ))}
-            </Box>
+            </Paper>
           )}
         </Box>
       </Box>
@@ -346,4 +372,4 @@ const ProblemPage = () => {
   );
 };
 
-export default ProblemPage;
+export default BattlePage;

@@ -9,6 +9,10 @@ import {
   Typography,
   CircularProgress,
   Paper,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
 } from "@mui/material";
 
 const javaTemplate = `import java.util.*;
@@ -64,7 +68,6 @@ const PracticePage = () => {
         language: "java",
         problemId: problemId,
       };
-      // The API response includes 'results' and 'allPassed'
       const { data } = await axios.post("/api/submissions", body, config);
       setSubmissionResult(data.results);
     } catch (error) {
@@ -92,12 +95,55 @@ const PracticePage = () => {
       }}
     >
       {/* Left Panel: Problem Description */}
-      <Box sx={{ flex: 1 }}>
+      <Box sx={{ flex: 1.5 }}>
         <Typography variant="h4" gutterBottom>
           {problem.title}
         </Typography>
-        <Typography paragraph>{problem.description}</Typography>
-        <Typography variant="h6">Difficulty: {problem.difficulty}</Typography>
+        <Typography paragraph color="text.secondary">
+          {problem.description}
+        </Typography>
+        <Divider sx={{ my: 2 }} />
+
+        {/* --- NEW: Examples Section --- */}
+        {problem.examples &&
+          problem.examples.map((example, index) => (
+            <Box key={index} sx={{ mb: 2 }}>
+              <Typography variant="h6">Example {index + 1}:</Typography>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  background: "rgba(255, 255, 255, 0.05)",
+                  fontFamily: "monospace",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                <strong>Input:</strong> {example.input}
+                <br />
+                <strong>Output:</strong> {example.output}
+                {example.explanation && (
+                  <>
+                    <br />
+                    <strong>Explanation:</strong> {example.explanation}
+                  </>
+                )}
+              </Paper>
+            </Box>
+          ))}
+
+        {/* --- NEW: Constraints Section --- */}
+        {problem.constraints && problem.constraints.length > 0 && (
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="h6">Constraints:</Typography>
+            <List dense>
+              {problem.constraints.map((constraint, index) => (
+                <ListItem key={index} sx={{ pl: 2 }}>
+                  <ListItemText primary={`• ${constraint}`} />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        )}
       </Box>
 
       {/* Right Panel: Code Editor and Results */}
@@ -123,13 +169,7 @@ const PracticePage = () => {
         </Button>
 
         {submissionResult && (
-          <Paper
-            elevation={3}
-            sx={{
-              mt: 2,
-              p: 2,
-            }}
-          >
+          <Paper elevation={3} sx={{ mt: 2, p: 2 }}>
             <Typography variant="h6">Submission Results</Typography>
             {submissionResult.map((result, index) => (
               <Box
