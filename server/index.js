@@ -60,6 +60,7 @@ const startServer = async () => {
     });
     app.use("/api/auth", require("./routes/auth"));
     app.use("/api/problems", require("./routes/problems"));
+    app.use("/api/run", require("./routes/run"));
     app.use("/api/submissions", require("./routes/submissions"));
     app.use("/api/leaderboard", require("./routes/leaderboard"));
     app.use("/api/users", require("./routes/users"));
